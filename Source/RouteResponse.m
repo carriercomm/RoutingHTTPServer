@@ -74,4 +74,21 @@
 	}
 }
 
+- (void)respondWithDictionary:(NSDictionary *)dictionary {
+    [self respondWithObject:dictionary];
+}
+
+- (void)respondWithArray:(NSArray *)array {
+    [self respondWithObject:array];
+}
+
+- (void)respondWithObject:(id)object {
+    NSError *error;
+    NSData *jsonData = [NSJSONSerialization dataWithJSONObject:object options:0 error:&error];
+    if (!jsonData) {
+        NSLog(@"ERROR: %@", error);
+    }
+    [self respondWithString:[[NSString alloc] initWithData:jsonData encoding:NSUTF8StringEncoding]];
+}
+
 @end

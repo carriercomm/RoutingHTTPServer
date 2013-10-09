@@ -1,9 +1,12 @@
 #import <Foundation/Foundation.h>
 #import "HTTPServer.h"
+#import "HTTPMessage.h"
 #import "RouteRequest.h"
 #import "RouteResponse.h"
 
 typedef void (^RequestHandler)(RouteRequest *request, RouteResponse *response);
+
+typedef id (^RequestHandlerReturn)(RouteRequest *request, RouteResponse *response);
 
 @interface RoutingHTTPServer : HTTPServer
 
@@ -13,6 +16,9 @@ typedef void (^RequestHandler)(RouteRequest *request, RouteResponse *response);
 // These headers can be overridden by RouteResponses.
 - (void)setDefaultHeaders:(NSDictionary *)headers;
 - (void)setDefaultHeader:(NSString *)field value:(NSString *)value;
+
+// Set API Token Check
+- (void)setDefaultAPIToken:(NSString *)token forParameter:(NSString *)parameter;
 
 // Returns the dispatch queue on which routes are processed.
 // By default this is NULL and routes are processed on CocoaHTTPServer's
@@ -35,6 +41,9 @@ typedef void (^RequestHandler)(RouteRequest *request, RouteResponse *response);
 - (void)delete:(NSString *)path withBlock:(RequestHandler)block;
 
 - (void)handleMethod:(NSString *)method withPath:(NSString *)path block:(RequestHandler)block;
+
+- (void)handleMethod:(NSString *)method withPath:(NSString *)path block:(RequestHandlerReturn)block requiredParameters:(NSArray *)requiredParameters;
+
 - (void)handleMethod:(NSString *)method withPath:(NSString *)path target:(id)target selector:(SEL)selector;
 
 - (BOOL)supportsMethod:(NSString *)method;

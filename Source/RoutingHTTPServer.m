@@ -6,6 +6,10 @@
 	NSMutableDictionary *routes;
 	NSMutableDictionary *defaultHeaders;
 	NSMutableDictionary *mimeTypes;
+
+    NSString *_defaultAPIToken;
+    NSString *_defaultAPIParameter;
+    
 	dispatch_queue_t routeQueue;
 }
 
@@ -38,6 +42,12 @@
 
 - (void)setDefaultHeader:(NSString *)field value:(NSString *)value {
 	[defaultHeaders setObject:value forKey:field];
+}
+
+- (void)setDefaultAPIToken:(NSString *)token forParameter:(NSString *)parameter
+{
+    _defaultAPIToken = token.copy;
+    _defaultAPIParameter = parameter.copy;
 }
 
 - (dispatch_queue_t)routeQueue {
@@ -103,6 +113,14 @@
 	Route *route = [self routeWithPath:path];
 	route.handler = block;
 
+	[self addRoute:route forMethod:method];
+}
+
+- (void)handleMethod:(NSString *)method withPath:(NSString *)path block:(RequestHandlerReturn)block requiredParameters:(NSArray *)requiredParameters
+{
+	Route *route = [self routeWithPath:path];
+    route.handlerReturn = block;
+	route.requiredParameters = requiredParameters;
 	[self addRoute:route forMethod:method];
 }
 
@@ -185,7 +203,39 @@
 }
 
 - (void)handleRoute:(Route *)route withRequest:(RouteRequest *)request response:(RouteResponse *)response {
-	if (route.handler) {
+    if (_defaultAPIToken) {
+        if (![_defaultAPIToken isEqualToString:request.params[_defaultAPIParameter]])
+        {
+            [response respondWithDictionary:@{@"call":@"failed",@"reason":@"authorization"}];
+            return;
+        };
+    }
+    
+	if (route.handlerReturn || route.handler)
+    {
+        if (route.requiredParameters) {
+            for (NSString *requiredParameter in route.requiredParameters) {
+                if (![request.params[requiredParameter] length]) {
+                    [response respondWithDictionary:@{@"call":@"failed",@"reason":[NSString stringWithFormat:@"missing parameter '%@'",requiredParameter]}];
+                    return;
+                }
+            }
+        }
+        if (route.handlerReturn)  {
+            id unknownResponse = route.handlerReturn(request, response);
+            if ([unknownResponse respondsToSelector:@selector(isEqualToString:)]) {
+                [response respondWithString:unknownResponse];
+            } else if ([unknownResponse respondsToSelector:@selector(objectForKey:)]) {
+                [response respondWithDictionary:unknownResponse];
+            } else if ([unknownResponse respondsToSelector:@selector(objectAtIndex:)]) {
+                [response respondWithArray:unknownResponse];
+            } else if ([unknownResponse respondsToSelector:@selector(bytes)]) {
+                [response respondWithData:unknownResponse];
+            } else {
+                NSLog(@"ERROR: No Known Response %@",[unknownResponse class]);
+            }
+            return;
+        }
 		route.handler(request, response);
 	} else {
 		#pragma clang diagnostic push
@@ -204,14 +254,13 @@
 		NSTextCheckingResult *result = [route.regex firstMatchInString:path options:0 range:NSMakeRange(0, path.length)];
 		if (!result)
 			continue;
-
 		// The first range is all of the text matched by the regex.
 		NSUInteger captureCount = [result numberOfRanges];
-
 		if (route.keys) {
 			// Add the route's parameters to the parameter dictionary, accounting for
 			// the first range containing the matched text.
 			if (captureCount == [route.keys count] + 1) {
+                
 				NSMutableDictionary *newParams = [params mutableCopy];
 				NSUInteger index = 1;
 				BOOL firstWildcard = YES;
@@ -243,6 +292,20 @@
 			[newParams setObject:captures forKey:@"captures"];
 			params = newParams;
 		}
+        
+        if ([method isEqualToString:@"POST"]) {
+            if ([httpMessage body].length < 5000) {
+                NSMutableDictionary *dict = [NSMutableDictionary dictionaryWithDictionary:params];
+                NSArray *postParams = [[[NSString alloc] initWithData:httpMessage.body encoding:NSUTF8StringEncoding] componentsSeparatedByString:@"&"];
+                for (NSString *postParam in postParams) {
+                    NSArray *postParamArray = [postParam componentsSeparatedByString:@"="];
+                    if (postParamArray.count != 2) continue;
+                    [dict setObject:postParamArray[1] forKey:postParamArray[0]];
+                }
+                params = dict.copy;
+            }
+        }
+        
 
 		RouteRequest *request = [[RouteRequest alloc] initWithHTTPMessage:httpMessage parameters:params];
 		RouteResponse *response = [[RouteResponse alloc] initWithConnection:connection];

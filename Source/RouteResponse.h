@@ -18,5 +18,7 @@
 - (void)respondWithData:(NSData *)data;
 - (void)respondWithFile:(NSString *)path;
 - (void)respondWithFile:(NSString *)path async:(BOOL)async;
+- (void)respondWithDictionary:(NSDictionary *)dictionary;
+- (void)respondWithArray:(NSArray *)array;
 
 @end

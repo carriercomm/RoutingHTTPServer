@@ -63,6 +63,8 @@
 	}
 
 	// Set a MIME type for static files if possible
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wundeclared-selector"
 	NSObject<HTTPResponse> *staticResponse = [super httpResponseForMethod:method URI:path];
 	if (staticResponse && [staticResponse respondsToSelector:@selector(filePath)]) {
 		NSString *mimeType = [http mimeTypeForPath:[staticResponse performSelector:@selector(filePath)]];
@@ -70,6 +72,7 @@
 			headers = [NSDictionary dictionaryWithObject:mimeType forKey:@"Content-Type"];
 		}
 	}
+#pragma clang diagnostic pop
 	return staticResponse;
 }
 

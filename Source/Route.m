@@ -7,5 +7,6 @@
 @synthesize target;
 @synthesize selector;
 @synthesize keys;
+@synthesize requiredParameters;
 
 @end
